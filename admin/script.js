@@ -3,7 +3,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getFirestore, collection, onSnapshot, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-console.log("Script Loaded: Initializing Firebase...");
+// --- DIAGNOSTIC START ---
+console.log("Script initializing...");
+// Remove this alert after it works, but for now it confirms the code is live on Vercel
+// alert("DEBUG: Script Loaded. Current Domain: " + window.location.hostname); 
 
 // --- CONFIGURATION ---
 const firebaseConfig = {
@@ -17,10 +20,16 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase Services
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
-const provider = new GoogleAuthProvider();
+let app, db, auth, provider;
+try {
+    app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    auth = getAuth(app);
+    provider = new GoogleAuthProvider();
+    console.log("Firebase initialized successfully");
+} catch (e) {
+    alert("CRITICAL FIREBASE INIT ERROR: " + e.message);
+}
 
 const notificationSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 let globalTickets = []; 
@@ -53,18 +62,21 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
-// --- 2. LOGIN LOGIC (ROBUST) ---
-window.handleGoogleLogin = function() {
-    console.log("Attempting Google Login...");
-    const loginBtn = document.getElementById('googleLoginBtn');
-    let originalContent = "";
-
-    // Visual Feedback
-    if(loginBtn) {
-        originalContent = loginBtn.innerHTML;
-        loginBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i><span>Signing in...</span>`;
-        loginBtn.disabled = true;
+// --- 2. GLOBAL CLICK LISTENER (Fixes "Button Not Clickable" issues) ---
+document.addEventListener('click', (e) => {
+    // Check if clicked element is the login button or inside it
+    const loginBtn = e.target.closest('#googleLoginBtn');
+    
+    if (loginBtn) {
+        console.log("Login Button Click Detected via Delegation");
+        handleGoogleLogin(loginBtn);
     }
+});
+
+function handleGoogleLogin(btnElement) {
+    const originalContent = btnElement.innerHTML;
+    btnElement.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i><span> Connecting...</span>`;
+    btnElement.disabled = true;
 
     signInWithPopup(auth, provider)
         .then((result) => {
@@ -75,44 +87,27 @@ window.handleGoogleLogin = function() {
             console.error("Login Error:", error);
             
             // Reset Button
-            if(loginBtn) {
-                loginBtn.innerHTML = originalContent || '<i class="fa-brands fa-google text-blue-500"></i><span>Sign in with Google</span>';
-                loginBtn.disabled = false;
-            }
+            btnElement.innerHTML = originalContent;
+            btnElement.disabled = false;
 
-            // CRITICAL: ALERT THE ERROR SO YOU CAN SEE IT ON VERCEL
+            // DETAILED ERROR HANDLING FOR VERCEL
             let msg = error.message;
             if (error.code === 'auth/unauthorized-domain') {
-                msg = "DOMAIN ERROR: You must add 'mvh-it-support.vercel.app' to Authorized Domains in Firebase Console -> Authentication -> Settings.";
+                msg = `DOMAIN ERROR!\n\nFirebase does not trust this website.\n\n1. Go to Firebase Console -> Authentication -> Settings -> Authorized Domains.\n2. Add this EXACT domain:\n\n${window.location.hostname}`;
+                // Also show on screen if alert is blocked
+                const errDisplay = document.getElementById('login-error-msg');
+                if(errDisplay) {
+                    errDisplay.innerText = "Domain Unauthorized. Add: " + window.location.hostname;
+                    errDisplay.classList.remove('hidden');
+                }
             } else if (error.code === 'auth/popup-closed-by-user') {
-                msg = "Login Cancelled.";
+                msg = "Login Cancelled by user.";
+            } else if (error.code === 'auth/popup-blocked') {
+                msg = "Popup Blocked. Please allow popups for this site.";
             }
             
             alert(msg);
         });
-};
-
-// Initialize Listeners safely
-function initApp() {
-    const loginBtn = document.getElementById('googleLoginBtn');
-    if(loginBtn) {
-        loginBtn.onclick = window.handleGoogleLogin;
-        console.log("Login listener attached successfully");
-    } else {
-        console.warn("Login button not found in DOM");
-    }
-
-    const logoutBtn = document.getElementById('logoutBtn');
-    if(logoutBtn) {
-        logoutBtn.onclick = window.logout;
-    }
-}
-
-// Ensure DOM is ready before attaching listeners
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initApp);
-} else {
-    initApp();
 }
 
 
@@ -146,7 +141,7 @@ function startRealTimeListener() {
     }, (error) => {
         console.error("Database Error:", error);
         if(error.code === 'permission-denied') {
-            alert("Permission Denied: Ensure your Firestore rules are set to 'allow read, write: if true;' in Firebase Console.");
+            alert("Database Permission Denied.\n\nGo to Firebase Console -> Firestore Database -> Rules.\nChange 'allow read, write: if false;' to 'allow read, write: if true;'");
         }
     });
 }
