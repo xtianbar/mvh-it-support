@@ -1,6 +1,8 @@
 // --- FIREBASE IMPORTS ---
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getFirestore, collection, onSnapshot, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
 
 // --- CONFIGURATION ---
 const firebaseConfig = {
@@ -13,50 +15,83 @@ const firebaseConfig = {
   measurementId: "G-PB2QWXCKTE"
 };
 
-// Initialize Firebase
+// Initialize Firebase Services
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
+const provider = new GoogleAuthProvider();
 
-const SESSION_KEY = 'hospital_admin_session'; 
-const ADMIN_PASS = 's@password1'; 
 const notificationSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-
 let globalTickets = []; // Store tickets in memory for modal/print access
+let unsubscribeListener = null; // To stop listening on logout
 
-// --- INITIALIZATION ---
-checkSession();
-
-function checkSession() {
-    const sessionExpiry = localStorage.getItem(SESSION_KEY);
-    const now = new Date().getTime();
-
-    if (sessionExpiry && now < parseInt(sessionExpiry)) {
+// --- AUTHENTICATION STATE OBSERVER ---
+onAuthStateChanged(auth, (user) => {
+    if (user) {
+        // User is signed in
         document.getElementById('login-modal').classList.add('hidden');
-        startRealTimeListener(); // Start listening to Firebase
+        document.getElementById('user-info').innerText = `Hello, ${user.displayName}`;
+        startRealTimeListener(); 
     } else {
+        // User is signed out
         document.getElementById('login-modal').classList.remove('hidden');
-        document.getElementById('adminPassword').focus();
+        document.getElementById('user-info').innerText = '';
+        if(unsubscribeListener) unsubscribeListener(); // Stop DB listener
+        renderAdminTable([]); // Clear table
     }
+});
+
+// --- LOGIN LOGIC ---
+const loginBtn = document.getElementById('googleLoginBtn');
+if(loginBtn) {
+    loginBtn.addEventListener('click', () => {
+        signInWithPopup(auth, provider)
+            .then((result) => {
+                // Successful login handled by onAuthStateChanged
+                console.log("Logged in:", result.user.email);
+            }).catch((error) => {
+                const errorCode = error.code;
+                const errorMessage = error.message;
+                const errDisplay = document.getElementById('login-error');
+                errDisplay.innerText = `Error: ${errorMessage}`;
+                errDisplay.classList.remove('hidden');
+            });
+    });
+}
+
+// --- LOGOUT LOGIC ---
+const logoutBtn = document.getElementById('logoutBtn');
+if(logoutBtn) {
+    logoutBtn.addEventListener('click', () => {
+        signOut(auth).then(() => {
+            console.log("Signed out");
+        }).catch((error) => {
+            console.error("Sign out error", error);
+        });
+    });
 }
 
 // --- FIREBASE REAL-TIME LISTENER ---
 function startRealTimeListener() {
-    // This replaces "checkForUpdates" and "setInterval"
-    // onSnapshot runs automatically whenever the DB changes
-    const unsub = onSnapshot(collection(db, "tickets"), (snapshot) => {
+    // onSnapshot returns an unsubscribe function
+    unsubscribeListener = onSnapshot(collection(db, "tickets"), (snapshot) => {
         let tickets = [];
         snapshot.forEach((doc) => {
-            // We include the firebase document ID (doc.id) alongside the data
             tickets.push({ firebaseId: doc.id, ...doc.data() });
         });
         
-        // Check if new tickets arrived (simple length check)
+        // Notification for new tickets (simple length check)
         if (globalTickets.length > 0 && tickets.length > globalTickets.length) {
             playNotification();
         }
         
-        globalTickets = tickets; // Update global store
+        globalTickets = tickets; 
         renderAdminTable(tickets);
+    }, (error) => {
+        console.error("Database Error:", error);
+        if(error.code === 'permission-denied') {
+            alert("Permission Denied: Ensure your Firestore rules allow reads.");
+        }
     });
 }
 
@@ -68,31 +103,6 @@ function playNotification() {
         setTimeout(() => toast.classList.add('translate-y-10', 'opacity-0'), 4000);
         setTimeout(() => toast.classList.add('hidden'), 4300);
     }
-}
-
-// --- AUTHENTICATION ---
-const passInput = document.getElementById('adminPassword');
-if(passInput) {
-    passInput.addEventListener('keypress', e => { if (e.key === 'Enter') checkLogin(); });
-}
-
-// We attach login logic to window so HTML buttons can see it
-window.checkLogin = function() {
-    const pass = document.getElementById('adminPassword').value;
-    if (pass === ADMIN_PASS) {
-        const oneDayInMs = 24 * 60 * 60 * 1000;
-        localStorage.setItem(SESSION_KEY, new Date().getTime() + oneDayInMs);
-        document.getElementById('login-modal').classList.add('hidden');
-        document.getElementById('login-error').classList.add('hidden');
-        startRealTimeListener();
-    } else {
-        document.getElementById('login-error').classList.remove('hidden');
-    }
-}
-
-window.logout = function() {
-    localStorage.removeItem(SESSION_KEY);
-    location.reload(); 
 }
 
 // --- DASHBOARD LOGIC ---
@@ -111,8 +121,10 @@ function renderAdminTable(tickets) {
         if(t.status === 'Pending') pendingCount++;
     });
 
-    document.getElementById('count-open').innerText = openCount;
-    document.getElementById('count-pending').innerText = pendingCount;
+    const countOpenEl = document.getElementById('count-open');
+    const countPendingEl = document.getElementById('count-pending');
+    if(countOpenEl) countOpenEl.innerText = openCount;
+    if(countPendingEl) countPendingEl.innerText = pendingCount;
 
     // Render Active
     const activeBody = document.getElementById('admin-ticket-list');
@@ -136,7 +148,6 @@ function renderAdminTable(tickets) {
 
 function createTicketRow(t, today, isResolved) {
     // New Status Logic (< 1 Hour)
-    // We try to use timestamp (ISO string). If fails, fallback to current time
     let ticketTime = new Date().getTime();
     if(t.timestamp) ticketTime = new Date(t.timestamp).getTime();
     
@@ -153,10 +164,7 @@ function createTicketRow(t, today, isResolved) {
     if(t.status === 'Resolved') statusClass = 'bg-green-100 text-green-700 border-green-200';
 
     const specificItem = t.specific_item || t.category;
-    // We use t.displayTime if available, otherwise t.timestamp
     const displayDate = t.displayTime || t.timestamp;
-
-    // Use firebaseId for actions to ensure we target the correct DB document
     const docId = t.firebaseId;
 
     tr.innerHTML = `
@@ -197,21 +205,18 @@ function createTicketRow(t, today, isResolved) {
     return tr;
 }
 
-// --- GLOBAL FUNCTIONS (Window Scope for HTML Access) ---
+// --- GLOBAL FUNCTIONS ---
 
 window.openViewModal = function(docId) {
     const t = globalTickets.find(ticket => ticket.firebaseId === docId);
     if(!t) return;
 
-    // Populate Fields
     document.getElementById('modal-title').innerText = `Ticket Details: ${t.id}`;
     document.getElementById('modal-date').innerText = t.displayTime || t.timestamp;
     document.getElementById('modal-requester').innerText = t.name;
     document.getElementById('modal-dept').innerText = t.dept;
     document.getElementById('modal-category').innerText = t.category;
     document.getElementById('modal-desc').innerText = t.desc;
-    
-    // Handle Specifics
     document.getElementById('modal-specific').innerText = t.specific_item || 'General';
     
     const serialCont = document.getElementById('modal-serial-container');
@@ -222,7 +227,6 @@ window.openViewModal = function(docId) {
         serialCont.classList.add('hidden');
     }
 
-    // Status Styling
     const statusBanner = document.getElementById('modal-status-banner');
     statusBanner.innerText = t.status;
     statusBanner.className = 'p-2 rounded text-center font-bold text-sm uppercase mb-4 text-white ';
@@ -230,10 +234,7 @@ window.openViewModal = function(docId) {
     if(t.status === 'Pending') statusBanner.classList.add('bg-yellow-500');
     if(t.status === 'Resolved') statusBanner.classList.add('bg-green-500');
 
-    // Link Print Button
     document.getElementById('modal-print-btn').onclick = () => window.printTicket(docId);
-
-    // Show Modal
     document.getElementById('view-modal').classList.remove('hidden');
 }
 
@@ -245,7 +246,6 @@ window.changeStatus = async function(docId, newStatus) {
     try {
         const ticketRef = doc(db, "tickets", docId);
         await updateDoc(ticketRef, { status: newStatus });
-        // No need to call renderAdminTable(), onSnapshot will handle it
     } catch (e) {
         console.error("Error updating status: ", e);
         alert("Failed to update status.");
@@ -262,33 +262,22 @@ window.deleteTicket = async function(docId) {
     }
 }
 
-window.clearAllData = function() {
-    alert("Clear All Data is disabled for safety in Firebase mode. You must delete tickets individually or use the Firebase Console.");
-}
-
 // --- PRINT FUNCTION ---
 window.printTicket = function(docId) {
     const t = globalTickets.find(ticket => ticket.firebaseId === docId);
     if (!t) { alert('Ticket not found'); return; }
 
-    // Parse Date
     let dateOnly = 'N/A';
-    let timeOnly = 'N/A';
-    
-    // Try to use displayTime first (from employee submission)
     if(t.displayTime) {
         const parts = t.displayTime.split(' ');
         if(parts.length >= 3) {
             dateOnly = parts[0];
-            timeOnly = parts[1] + ' ' + parts[2];
         } else {
             dateOnly = t.displayTime;
         }
     } else {
-        // Fallback for older data
         const d = new Date(t.timestamp);
         dateOnly = d.toLocaleDateString();
-        timeOnly = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
     }
 
     const specificInfo = t.specific_item || t.category;
@@ -297,59 +286,38 @@ window.printTicket = function(docId) {
     const printWindow = window.open('', '', 'height=800,width=1000');
     
     printWindow.document.write(`
-        <html>
-        <head>
-            <title>Job Order - ${t.id}</title>
-            <style>
-                body { 
-                    font-family: Arial, sans-serif; 
-                    margin: 0;
-                    padding: 20px;
-                    background-color: white;
-                    display: flex;
-                    justify-content: center; 
-                }
-                .ticket-card { width: 8.5in; border: 2px solid #333; padding: 20px; box-sizing: border-box; position: relative; }
-                .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
-                .header h1 { margin: 0; font-size: 18px; text-transform: uppercase; letter-spacing: 1px; }
-                .header p { margin: 2px 0; font-size: 12px; color: #666; }
-                .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; font-size: 12px; }
-                .label { font-weight: bold; color: #555; text-transform: uppercase; font-size: 10px; }
-                .value { border-bottom: 1px dotted #999; padding-bottom: 3px; font-weight: bold; }
-                .issue-box { border: 1px solid #ddd; background: #f9f9f9; padding: 15px; min-height: 120px; margin-bottom: 20px; }
-                .issue-title { font-weight: bold; margin-bottom: 5px; font-size: 11px; text-transform: uppercase; }
-                .resolution-area { margin-top: 10px; }
-                .line { border-bottom: 1px solid #ccc; height: 25px; margin-bottom: 5px; }
-                .signatures { margin-top: 40px; display: flex; justify-content: space-between; gap: 20px; }
-                .sig-line { flex: 1; border-top: 1px solid black; text-align: center; font-size: 10px; padding-top: 5px; font-weight: bold; }
-                .footer-id { position: absolute; top: 15px; right: 15px; font-family: monospace; font-size: 14px; font-weight: bold; border: 1px solid #333; padding: 3px 8px; background: #eee; }
-                @media print { @page { margin: 0; } body { margin: 0.5in; } }
-            </style>
-        </head>
-        <body>
-            <div class="ticket-card">
-                <div class="footer-id">TRF No.: ${t.id}<br> Date: ${dateOnly}</div>
-                <div class="header"><p>Metro Vigan Hospital</p><h1>Trouble Report Form</h1></div>
-                <div class="meta-grid">
-                    <div><div class="label">Requested By</div><div class="value">${t.name}</div></div>
-                    <div><div class="label">Department / Station</div><div class="value">${t.dept}</div></div>   
-                    <div><div class="label">Category</div><div class="value">${t.category}</div></div>       
-                    <div><div class="label">Details</div><div class="value">${specificInfo}</div></div>
-                    ${serialInfo ? `<div><div class="label">Serial No.:</div><div class="value">${serialInfo}</div></div>` : ''}
-                </div>
-                <div class="issue-box"><div class="issue-title">Issue Description:</div><p style="font-size: 13px; margin: 0;">${t.desc}</p></div>
-                <div class="resolution-area"><div class="issue-title">Action Taken / Resolution:</div><div class="line"></div><div class="line"></div><div class="line"></div></div>
-                <div class="signatures"><div class="sig-line">IT-in-Charge</div><div class="sig-line">Approved By</div></div>
-                <div class="footer-code" style="font-size:12px; margin-top:5px; font-weight:bold;">MA-009-2</div>
+        <html><head><title>${t.id}</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 0; padding: 20px; display: flex; justify-content: center; }
+            .ticket-card { width: 8.5in; border: 2px solid #333; padding: 20px; box-sizing: border-box; }
+            .header { text-align: center; border-bottom: 2px solid #333; margin-bottom: 20px; }
+            .header h1 { margin: 0; font-size: 18px; text-transform: uppercase; letter-spacing: 1px; }
+            .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; font-size: 12px; }
+            .label { font-weight: bold; color: #555; text-transform: uppercase; font-size: 10px; }
+            .value { border-bottom: 1px dotted #999; font-weight: bold; }
+            .issue-box { border: 1px solid #ddd; background: #f9f9f9; padding: 15px; min-height: 120px; margin-bottom: 20px; }
+            .footer-id { position: absolute; top: 15px; right: 15px; font-family: monospace; font-size: 14px; font-weight: bold; border: 1px solid #333; padding: 3px 8px; background: #eee; }
+            .signatures { margin-top: 40px; display: flex; justify-content: space-between; gap: 20px; }
+            .sig-line { flex: 1; border-top: 1px solid black; text-align: center; font-size: 10px; padding-top: 5px; font-weight: bold; }
+            @media print { @page { margin: 0; } body { margin: 0.5in; } }
+        </style></head><body>
+        <div class="ticket-card" style="position:relative;">
+            <div class="footer-id">TRF No.: ${t.id}<br>Date: ${dateOnly}</div>
+            <div class="header"><p>Metro Vigan Hospital</p><h1>Trouble Report Form</h1></div>
+            <div class="meta-grid">
+                <div><div class="label">Requested By</div><div class="value">${t.name}</div></div>
+                <div><div class="label">Department / Station</div><div class="value">${t.dept}</div></div>
+                <div><div class="label">Category</div><div class="value">${t.category}</div></div>
+                <div><div class="label">Details</div><div class="value">${specificInfo}</div></div>
+                ${serialInfo ? `<div><div class="label">Serial No.:</div><div class="value">${serialInfo}</div></div>` : ''}
             </div>
-        </body>
-        </html>
+            <div class="issue-box"><strong>ISSUE DESCRIPTION:</strong><br>${t.desc}</div>
+            <div style="margin-top:10px;"><strong>ACTION TAKEN / RESOLUTION:</strong><br><div style="border-bottom:1px solid #ccc; height:25px; margin-bottom:5px;"></div><div style="border-bottom:1px solid #ccc; height:25px; margin-bottom:5px;"></div></div>
+            <div class="signatures"><div class="sig-line">IT-in-Charge</div><div class="sig-line">Approved By</div></div>
+            <div style="font-size:12px; margin-top:5px; font-weight:bold;">MA-009-2</div>
+        </div></body></html>
     `);
-
     printWindow.document.close();
     printWindow.focus();
-    setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-    }, 500);
+    setTimeout(() => { printWindow.print(); printWindow.close(); }, 500);
 }
