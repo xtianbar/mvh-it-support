@@ -3,7 +3,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getFirestore, collection, onSnapshot, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-
 // --- CONFIGURATION ---
 const firebaseConfig = {
   apiKey: "AIzaSyC_L2va6-rxNLjg4ag9WHSSPMVFroRitrA",
@@ -15,72 +14,91 @@ const firebaseConfig = {
   measurementId: "G-PB2QWXCKTE"
 };
 
-// Initialize Firebase Services
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
 
 const notificationSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-let globalTickets = []; // Store tickets in memory for modal/print access
-let unsubscribeListener = null; // To stop listening on logout
+let globalTickets = []; 
+let unsubscribeListener = null; 
 
-// --- AUTHENTICATION STATE OBSERVER ---
+// --- 1. AUTH STATE OBSERVER (Runs automatically) ---
 onAuthStateChanged(auth, (user) => {
     if (user) {
-        // User is signed in
+        console.log("User is signed in:", user.email);
         document.getElementById('login-modal').classList.add('hidden');
+        document.getElementById('logoutBtn').classList.remove('hidden');
         document.getElementById('user-info').innerText = `Hello, ${user.displayName}`;
         startRealTimeListener(); 
     } else {
-        // User is signed out
+        console.log("User is signed out");
         document.getElementById('login-modal').classList.remove('hidden');
+        document.getElementById('logoutBtn').classList.add('hidden');
         document.getElementById('user-info').innerText = '';
-        if(unsubscribeListener) unsubscribeListener(); // Stop DB listener
-        renderAdminTable([]); // Clear table
+        if(unsubscribeListener) unsubscribeListener();
+        renderAdminTable([]); 
     }
 });
 
-// --- LOGIN LOGIC ---
+// --- 2. LOGIN BUTTON LOGIC ---
 const loginBtn = document.getElementById('googleLoginBtn');
 if(loginBtn) {
+    console.log("Google Login Button Found in DOM"); // Debug Check
+    
     loginBtn.addEventListener('click', () => {
+        console.log("Login Button Clicked"); // Debug Check
+        
+        // Visual Feedback
+        const originalContent = loginBtn.innerHTML;
+        loginBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i><span>Signing in...</span>`;
+        loginBtn.disabled = true;
+        const errDisplay = document.getElementById('login-error-msg');
+        errDisplay.classList.add('hidden');
+
         signInWithPopup(auth, provider)
             .then((result) => {
-                // Successful login handled by onAuthStateChanged
-                console.log("Logged in:", result.user.email);
-            }).catch((error) => {
-                const errorCode = error.code;
-                const errorMessage = error.message;
-                const errDisplay = document.getElementById('login-error');
-                errDisplay.innerText = `Error: ${errorMessage}`;
+                console.log("Login Success");
+                // onAuthStateChanged will handle the UI update
+            })
+            .catch((error) => {
+                console.error("Login Error:", error);
+                
+                // Reset Button
+                loginBtn.innerHTML = originalContent;
+                loginBtn.disabled = false;
+
+                // Show Error
+                let msg = error.message;
+                if (error.code === 'auth/popup-closed-by-user') msg = "Login cancelled.";
+                if (error.code === 'auth/unauthorized-domain') msg = "Domain not authorized in Firebase Console.";
+                
+                errDisplay.innerText = msg;
                 errDisplay.classList.remove('hidden');
             });
     });
+} else {
+    console.error("CRITICAL: Google Login Button NOT found in DOM");
 }
 
-// --- LOGOUT LOGIC ---
+// --- 3. LOGOUT LOGIC ---
 const logoutBtn = document.getElementById('logoutBtn');
 if(logoutBtn) {
     logoutBtn.addEventListener('click', () => {
         signOut(auth).then(() => {
-            console.log("Signed out");
-        }).catch((error) => {
-            console.error("Sign out error", error);
-        });
+            // onAuthStateChanged will handle UI
+        }).catch((error) => console.error("Sign out error", error));
     });
 }
 
-// --- FIREBASE REAL-TIME LISTENER ---
+// --- 4. REAL-TIME DB LISTENER ---
 function startRealTimeListener() {
-    // onSnapshot returns an unsubscribe function
     unsubscribeListener = onSnapshot(collection(db, "tickets"), (snapshot) => {
         let tickets = [];
         snapshot.forEach((doc) => {
             tickets.push({ firebaseId: doc.id, ...doc.data() });
         });
         
-        // Notification for new tickets (simple length check)
         if (globalTickets.length > 0 && tickets.length > globalTickets.length) {
             playNotification();
         }
@@ -90,7 +108,7 @@ function startRealTimeListener() {
     }, (error) => {
         console.error("Database Error:", error);
         if(error.code === 'permission-denied') {
-            alert("Permission Denied: Ensure your Firestore rules allow reads.");
+            alert("Permission Denied: Database rules might be blocking access.");
         }
     });
 }
@@ -105,7 +123,7 @@ function playNotification() {
     }
 }
 
-// --- DASHBOARD LOGIC ---
+// --- 5. RENDER LOGIC ---
 function renderAdminTable(tickets) {
     const activeTickets = tickets.filter(t => t.status !== 'Resolved');
     const resolvedTickets = tickets.filter(t => t.status === 'Resolved');
@@ -126,7 +144,6 @@ function renderAdminTable(tickets) {
     if(countOpenEl) countOpenEl.innerText = openCount;
     if(countPendingEl) countPendingEl.innerText = pendingCount;
 
-    // Render Active
     const activeBody = document.getElementById('admin-ticket-list');
     activeBody.innerHTML = ''; 
     const today = new Date().toLocaleDateString();
@@ -134,7 +151,6 @@ function renderAdminTable(tickets) {
     if(activeTickets.length === 0) activeBody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-gray-400">No active tickets.</td></tr>`;
     activeTickets.forEach(t => activeBody.appendChild(createTicketRow(t, today, false)));
 
-    // Render Resolved
     const resolvedSection = document.getElementById('resolved-section');
     const resolvedBody = document.getElementById('resolved-ticket-list');
     if (resolvedTickets.length > 0) {
@@ -147,7 +163,6 @@ function renderAdminTable(tickets) {
 }
 
 function createTicketRow(t, today, isResolved) {
-    // New Status Logic (< 1 Hour)
     let ticketTime = new Date().getTime();
     if(t.timestamp) ticketTime = new Date(t.timestamp).getTime();
     
@@ -159,9 +174,9 @@ function createTicketRow(t, today, isResolved) {
     tr.className = isResolved ? "border-b bg-gray-50 opacity-75" : "border-b hover:bg-slate-50 transition";
     
     let statusClass = '';
-    if(t.status === 'Open') statusClass = 'bg-red-100 text-red-700 border-red-200';
-    if(t.status === 'Pending') statusClass = 'bg-yellow-100 text-yellow-700 border-yellow-200';
-    if(t.status === 'Resolved') statusClass = 'bg-green-100 text-green-700 border-green-200';
+    if(t.status === 'Open') statusClass = 'bg-red-100 text-red-700 border-red-200 hover:bg-red-200';
+    if(t.status === 'Pending') statusClass = 'bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-200';
+    if(t.status === 'Resolved') statusClass = 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200';
 
     const specificItem = t.specific_item || t.category;
     const displayDate = t.displayTime || t.timestamp;
@@ -180,24 +195,20 @@ function createTicketRow(t, today, isResolved) {
         <td class="p-4"><span class="bg-gray-100 px-2 py-1 rounded text-xs font-semibold">${specificItem}</span></td>
         <td class="p-4 font-bold text-blue-700 text-xs">${t.desc}</td>
         <td class="p-4">
-            <span class="px-3 py-1 rounded-full text-xs font-bold border ${statusClass}">
-                <button onclick="window.openViewModal('${docId}')" title="View Details">
-                    ${t.status}
-                </button>
-            </span>
+            <button onclick="window.openViewModal('${docId}')" title="View Details" class="px-3 py-1 rounded-full text-xs font-bold border ${statusClass} transition-colors duration-150">
+                ${t.status}
+            </button>
         </td>
         <td class="p-4 text-right flex justify-end items-center mt-2">
             <button onclick="window.printTicket('${docId}')" class="text-blue-600 hover:text-blue-800 mx-1 bg-blue-50 p-2 rounded shadow-sm border border-blue-200 transition" title="Print Job Order">
                 <i class="fa-solid fa-print"></i>
             </button>
-
             <div class="w-px h-6 bg-gray-300 mx-2"></div>
-            
             ${!isResolved ? `
-                <button onclick="window.changeStatus('${docId}', 'Pending')" class="text-yellow-500 hover:text-yellow-700 mx-1 bg-white p-2 rounded shadow-sm border" title="Mark Pending"><i class="fa-solid fa-clock"></i></button>
-                <button onclick="window.changeStatus('${docId}', 'Resolved')" class="text-green-500 hover:text-green-700 mx-1 bg-white p-2 rounded shadow-sm border" title="Mark Done"><i class="fa-solid fa-check"></i></button>
+                <button onclick="window.updateStatus('${docId}', 'Pending')" class="text-yellow-500 hover:text-yellow-700 mx-1 bg-white p-2 rounded shadow-sm border" title="Mark Pending"><i class="fa-solid fa-clock"></i></button>
+                <button onclick="window.updateStatus('${docId}', 'Resolved')" class="text-green-500 hover:text-green-700 mx-1 bg-white p-2 rounded shadow-sm border" title="Mark Done"><i class="fa-solid fa-check"></i></button>
             ` : `
-                <button onclick="window.changeStatus('${docId}', 'Open')" class="text-gray-400 hover:text-blue-600 mx-1 text-xs text-black hover:text-gray-800" title="Re-Open">Re-open Ticket</button>
+                <button onclick="window.updateStatus('${docId}', 'Open')" class="text-gray-400 hover:text-blue-600 mx-1 text-xs" title="Re-Open"><i class="fa-solid fa-arrow-rotate-left"></i></button>
             `}
              <button onclick="window.deleteTicket('${docId}')" class="text-gray-300 hover:text-red-500 mx-1" title="Delete"><i class="fa-solid fa-trash"></i></button>
         </td>
@@ -206,7 +217,6 @@ function createTicketRow(t, today, isResolved) {
 }
 
 // --- GLOBAL FUNCTIONS ---
-
 window.openViewModal = function(docId) {
     const t = globalTickets.find(ticket => ticket.firebaseId === docId);
     if(!t) return;
@@ -223,9 +233,7 @@ window.openViewModal = function(docId) {
     if(t.serial_no && t.serial_no !== 'N/A') {
         document.getElementById('modal-serial').innerText = t.serial_no;
         serialCont.classList.remove('hidden');
-    } else {
-        serialCont.classList.add('hidden');
-    }
+    } else { serialCont.classList.add('hidden'); }
 
     const statusBanner = document.getElementById('modal-status-banner');
     statusBanner.innerText = t.status;
@@ -238,11 +246,9 @@ window.openViewModal = function(docId) {
     document.getElementById('view-modal').classList.remove('hidden');
 }
 
-window.closeViewModal = function() {
-    document.getElementById('view-modal').classList.add('hidden');
-}
+window.closeViewModal = function() { document.getElementById('view-modal').classList.add('hidden'); }
 
-window.changeStatus = async function(docId, newStatus) {
+window.updateStatus = async function(docId, newStatus) {
     try {
         const ticketRef = doc(db, "tickets", docId);
         await updateDoc(ticketRef, { status: newStatus });
@@ -262,7 +268,6 @@ window.deleteTicket = async function(docId) {
     }
 }
 
-// --- PRINT FUNCTION ---
 window.printTicket = function(docId) {
     const t = globalTickets.find(ticket => ticket.firebaseId === docId);
     if (!t) { alert('Ticket not found'); return; }
@@ -270,11 +275,7 @@ window.printTicket = function(docId) {
     let dateOnly = 'N/A';
     if(t.displayTime) {
         const parts = t.displayTime.split(' ');
-        if(parts.length >= 3) {
-            dateOnly = parts[0];
-        } else {
-            dateOnly = t.displayTime;
-        }
+        if(parts.length >= 3) { dateOnly = parts[0]; } else { dateOnly = t.displayTime; }
     } else {
         const d = new Date(t.timestamp);
         dateOnly = d.toLocaleDateString();
@@ -284,7 +285,6 @@ window.printTicket = function(docId) {
     const serialInfo = (t.serial_no && t.serial_no !== 'N/A') ? t.serial_no : '';
 
     const printWindow = window.open('', '', 'height=800,width=1000');
-    
     printWindow.document.write(`
         <html><head><title>${t.id}</title>
         <style>
