@@ -14,6 +14,7 @@ const firebaseConfig = {
   measurementId: "G-PB2QWXCKTE"
 };
 
+// Initialize Firebase Services
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
@@ -27,72 +28,121 @@ let unsubscribeListener = null;
 onAuthStateChanged(auth, (user) => {
     if (user) {
         console.log("User is signed in:", user.email);
+        
+        // Show Logout, Hide Login
         document.getElementById('login-modal').classList.add('hidden');
-        document.getElementById('logoutBtn').classList.remove('hidden');
-        document.getElementById('user-info').innerText = `Hello, ${user.displayName}`;
+        
+        const logoutBtn = document.getElementById('logoutBtn');
+        if(logoutBtn) logoutBtn.classList.remove('hidden');
+        
+        const userInfo = document.getElementById('user-info');
+        if(userInfo) userInfo.innerText = `Hello, ${user.displayName}`;
+        
         startRealTimeListener(); 
     } else {
         console.log("User is signed out");
+        
+        // Show Login, Hide Logout
         document.getElementById('login-modal').classList.remove('hidden');
-        document.getElementById('logoutBtn').classList.add('hidden');
-        document.getElementById('user-info').innerText = '';
+        
+        const logoutBtn = document.getElementById('logoutBtn');
+        if(logoutBtn) logoutBtn.classList.add('hidden');
+        
+        const userInfo = document.getElementById('user-info');
+        if(userInfo) userInfo.innerText = '';
+        
+        // Stop listening to DB to save data/bandwidth
         if(unsubscribeListener) unsubscribeListener();
         renderAdminTable([]); 
     }
 });
 
-// --- 2. LOGIN BUTTON LOGIC ---
-const loginBtn = document.getElementById('googleLoginBtn');
-if(loginBtn) {
-    console.log("Google Login Button Found in DOM"); // Debug Check
-    
-    loginBtn.addEventListener('click', () => {
-        console.log("Login Button Clicked"); // Debug Check
-        
-        // Visual Feedback
-        const originalContent = loginBtn.innerHTML;
+// --- 2. LOGIN LOGIC (ROBUST) ---
+window.handleGoogleLogin = function() {
+    console.log("Starting Google Login...");
+    const loginBtn = document.getElementById('googleLoginBtn');
+    const errDisplay = document.getElementById('login-error-msg');
+    let originalContent = "";
+
+    // Visual Feedback
+    if(loginBtn) {
+        originalContent = loginBtn.innerHTML;
         loginBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i><span>Signing in...</span>`;
         loginBtn.disabled = true;
-        const errDisplay = document.getElementById('login-error-msg');
-        errDisplay.classList.add('hidden');
+    }
+    if(errDisplay) errDisplay.classList.add('hidden');
 
-        signInWithPopup(auth, provider)
-            .then((result) => {
-                console.log("Login Success");
-                // onAuthStateChanged will handle the UI update
-            })
-            .catch((error) => {
-                console.error("Login Error:", error);
-                
-                // Reset Button
-                loginBtn.innerHTML = originalContent;
+    signInWithPopup(auth, provider)
+        .then((result) => {
+            console.log("Login Success");
+            // onAuthStateChanged will handle the UI update automatically
+        })
+        .catch((error) => {
+            console.error("Login Error:", error);
+            
+            // Reset Button
+            if(loginBtn) {
+                loginBtn.innerHTML = originalContent || '<i class="fa-brands fa-google text-blue-500"></i><span>Sign in with Google</span>';
                 loginBtn.disabled = false;
+            }
 
-                // Show Error
-                let msg = error.message;
-                if (error.code === 'auth/popup-closed-by-user') msg = "Login cancelled.";
-                if (error.code === 'auth/unauthorized-domain') msg = "Domain not authorized in Firebase Console.";
-                
+            // Show Error
+            let msg = error.message;
+            if (error.code === 'auth/popup-closed-by-user') msg = "Login cancelled.";
+            if (error.code === 'auth/unauthorized-domain') msg = "Domain not authorized. Add to Firebase Console.";
+            
+            if(errDisplay) {
                 errDisplay.innerText = msg;
                 errDisplay.classList.remove('hidden');
-            });
-    });
-} else {
-    console.error("CRITICAL: Google Login Button NOT found in DOM");
-}
+            } else {
+                alert(msg);
+            }
+        });
+};
 
-// --- 3. LOGOUT LOGIC ---
-const logoutBtn = document.getElementById('logoutBtn');
-if(logoutBtn) {
-    logoutBtn.addEventListener('click', () => {
-        signOut(auth).then(() => {
-            // onAuthStateChanged will handle UI
-        }).catch((error) => console.error("Sign out error", error));
+// Auto-attach Login Listener
+const attachLoginListener = () => {
+    const loginBtn = document.getElementById('googleLoginBtn');
+    if(loginBtn) {
+        // Use onclick to override any previous listeners cleanly
+        loginBtn.onclick = window.handleGoogleLogin;
+        console.log("Login listener attached");
+    } else {
+        setTimeout(attachLoginListener, 500); // Retry if not found
+    }
+};
+attachLoginListener();
+
+
+// --- 3. LOGOUT LOGIC (ROBUST) ---
+// Define globally so it can be called from HTML onclick if needed
+window.logout = function() {
+    console.log("Attempting logout...");
+    signOut(auth).then(() => {
+        console.log("Sign out successful");
+        // onAuthStateChanged handles UI
+    }).catch((error) => {
+        console.error("Sign out error", error);
+        alert("Error signing out: " + error.message);
     });
-}
+};
+
+// Auto-attach Logout Listener
+const attachLogoutListener = () => {
+    const logoutBtn = document.getElementById('logoutBtn');
+    if(logoutBtn) {
+        logoutBtn.onclick = window.logout;
+        console.log("Logout listener attached");
+    } else {
+        setTimeout(attachLogoutListener, 500); // Retry if not found
+    }
+};
+attachLogoutListener();
+
 
 // --- 4. REAL-TIME DB LISTENER ---
 function startRealTimeListener() {
+    // onSnapshot returns an unsubscribe function
     unsubscribeListener = onSnapshot(collection(db, "tickets"), (snapshot) => {
         let tickets = [];
         snapshot.forEach((doc) => {
@@ -108,7 +158,7 @@ function startRealTimeListener() {
     }, (error) => {
         console.error("Database Error:", error);
         if(error.code === 'permission-denied') {
-            alert("Permission Denied: Database rules might be blocking access.");
+            alert("Permission Denied: Ensure your Firestore rules allow reads.");
         }
     });
 }
@@ -145,20 +195,25 @@ function renderAdminTable(tickets) {
     if(countPendingEl) countPendingEl.innerText = pendingCount;
 
     const activeBody = document.getElementById('admin-ticket-list');
-    activeBody.innerHTML = ''; 
-    const today = new Date().toLocaleDateString();
+    if (activeBody) {
+        activeBody.innerHTML = ''; 
+        const today = new Date().toLocaleDateString();
 
-    if(activeTickets.length === 0) activeBody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-gray-400">No active tickets.</td></tr>`;
-    activeTickets.forEach(t => activeBody.appendChild(createTicketRow(t, today, false)));
+        if(activeTickets.length === 0) activeBody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-gray-400">No active tickets.</td></tr>`;
+        activeTickets.forEach(t => activeBody.appendChild(createTicketRow(t, today, false)));
+    }
 
     const resolvedSection = document.getElementById('resolved-section');
     const resolvedBody = document.getElementById('resolved-ticket-list');
-    if (resolvedTickets.length > 0) {
-        resolvedSection.classList.remove('hidden');
-        resolvedBody.innerHTML = '';
-        resolvedTickets.forEach(t => resolvedBody.appendChild(createTicketRow(t, today, true)));
-    } else {
-        resolvedSection.classList.add('hidden');
+    if (resolvedSection && resolvedBody) {
+        if (resolvedTickets.length > 0) {
+            resolvedSection.classList.remove('hidden');
+            resolvedBody.innerHTML = '';
+            const today = new Date().toLocaleDateString();
+            resolvedTickets.forEach(t => resolvedBody.appendChild(createTicketRow(t, today, true)));
+        } else {
+            resolvedSection.classList.add('hidden');
+        }
     }
 }
 
