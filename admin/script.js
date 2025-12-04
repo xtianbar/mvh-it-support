@@ -3,6 +3,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getFirestore, collection, onSnapshot, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
+console.log("Script Loaded: Initializing Firebase...");
+
 // --- CONFIGURATION ---
 const firebaseConfig = {
   apiKey: "AIzaSyC_L2va6-rxNLjg4ag9WHSSPMVFroRitrA",
@@ -26,10 +28,8 @@ let unsubscribeListener = null;
 
 // --- 1. AUTH STATE OBSERVER (Runs automatically) ---
 onAuthStateChanged(auth, (user) => {
+    console.log("Auth State Changed:", user ? "User Signed In" : "User Signed Out");
     if (user) {
-        console.log("User is signed in:", user.email);
-        
-        // Show Logout, Hide Login
         document.getElementById('login-modal').classList.add('hidden');
         
         const logoutBtn = document.getElementById('logoutBtn');
@@ -40,9 +40,6 @@ onAuthStateChanged(auth, (user) => {
         
         startRealTimeListener(); 
     } else {
-        console.log("User is signed out");
-        
-        // Show Login, Hide Logout
         document.getElementById('login-modal').classList.remove('hidden');
         
         const logoutBtn = document.getElementById('logoutBtn');
@@ -51,7 +48,6 @@ onAuthStateChanged(auth, (user) => {
         const userInfo = document.getElementById('user-info');
         if(userInfo) userInfo.innerText = '';
         
-        // Stop listening to DB to save data/bandwidth
         if(unsubscribeListener) unsubscribeListener();
         renderAdminTable([]); 
     }
@@ -59,9 +55,8 @@ onAuthStateChanged(auth, (user) => {
 
 // --- 2. LOGIN LOGIC (ROBUST) ---
 window.handleGoogleLogin = function() {
-    console.log("Starting Google Login...");
+    console.log("Attempting Google Login...");
     const loginBtn = document.getElementById('googleLoginBtn');
-    const errDisplay = document.getElementById('login-error-msg');
     let originalContent = "";
 
     // Visual Feedback
@@ -70,12 +65,11 @@ window.handleGoogleLogin = function() {
         loginBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i><span>Signing in...</span>`;
         loginBtn.disabled = true;
     }
-    if(errDisplay) errDisplay.classList.add('hidden');
 
     signInWithPopup(auth, provider)
         .then((result) => {
-            console.log("Login Success");
-            // onAuthStateChanged will handle the UI update automatically
+            console.log("Login Success:", result.user.email);
+            // onAuthStateChanged handles the UI
         })
         .catch((error) => {
             console.error("Login Error:", error);
@@ -86,63 +80,57 @@ window.handleGoogleLogin = function() {
                 loginBtn.disabled = false;
             }
 
-            // Show Error
+            // CRITICAL: ALERT THE ERROR SO YOU CAN SEE IT ON VERCEL
             let msg = error.message;
-            if (error.code === 'auth/popup-closed-by-user') msg = "Login cancelled.";
-            if (error.code === 'auth/unauthorized-domain') msg = "Domain not authorized. Add to Firebase Console.";
-            
-            if(errDisplay) {
-                errDisplay.innerText = msg;
-                errDisplay.classList.remove('hidden');
-            } else {
-                alert(msg);
+            if (error.code === 'auth/unauthorized-domain') {
+                msg = "DOMAIN ERROR: You must add 'mvh-it-support.vercel.app' to Authorized Domains in Firebase Console -> Authentication -> Settings.";
+            } else if (error.code === 'auth/popup-closed-by-user') {
+                msg = "Login Cancelled.";
             }
+            
+            alert(msg);
         });
 };
 
-// Auto-attach Login Listener
-const attachLoginListener = () => {
+// Initialize Listeners safely
+function initApp() {
     const loginBtn = document.getElementById('googleLoginBtn');
     if(loginBtn) {
-        // Use onclick to override any previous listeners cleanly
         loginBtn.onclick = window.handleGoogleLogin;
-        console.log("Login listener attached");
+        console.log("Login listener attached successfully");
     } else {
-        setTimeout(attachLoginListener, 500); // Retry if not found
+        console.warn("Login button not found in DOM");
     }
-};
-attachLoginListener();
+
+    const logoutBtn = document.getElementById('logoutBtn');
+    if(logoutBtn) {
+        logoutBtn.onclick = window.logout;
+    }
+}
+
+// Ensure DOM is ready before attaching listeners
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+} else {
+    initApp();
+}
 
 
-// --- 3. LOGOUT LOGIC (ROBUST) ---
-// Define globally so it can be called from HTML onclick if needed
+// --- 3. LOGOUT LOGIC ---
 window.logout = function() {
-    console.log("Attempting logout...");
+    if(!confirm("Are you sure you want to logout?")) return;
+    
     signOut(auth).then(() => {
         console.log("Sign out successful");
-        // onAuthStateChanged handles UI
     }).catch((error) => {
         console.error("Sign out error", error);
         alert("Error signing out: " + error.message);
     });
 };
 
-// Auto-attach Logout Listener
-const attachLogoutListener = () => {
-    const logoutBtn = document.getElementById('logoutBtn');
-    if(logoutBtn) {
-        logoutBtn.onclick = window.logout;
-        console.log("Logout listener attached");
-    } else {
-        setTimeout(attachLogoutListener, 500); // Retry if not found
-    }
-};
-attachLogoutListener();
-
 
 // --- 4. REAL-TIME DB LISTENER ---
 function startRealTimeListener() {
-    // onSnapshot returns an unsubscribe function
     unsubscribeListener = onSnapshot(collection(db, "tickets"), (snapshot) => {
         let tickets = [];
         snapshot.forEach((doc) => {
@@ -158,7 +146,7 @@ function startRealTimeListener() {
     }, (error) => {
         console.error("Database Error:", error);
         if(error.code === 'permission-denied') {
-            alert("Permission Denied: Ensure your Firestore rules allow reads.");
+            alert("Permission Denied: Ensure your Firestore rules are set to 'allow read, write: if true;' in Firebase Console.");
         }
     });
 }
