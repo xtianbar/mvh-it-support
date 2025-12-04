@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metro Vigan Hospital - Online Support</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+    <style>
+        .fade-in { animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col bg-gray-50 font-sans">
+
+    <header class="bg-white shadow-sm sticky top-0 z-10">
+        <div class="max-w-4xl mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <i class="fa-solid fa-laptop-medical text-green-600 text-2xl"></i>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight text-gray-800">IT<span class="text-green-600">Support</span></h1>
+                    <p class="text-xs text-gray-500 uppercase tracking-widest font-semibold">Employee Portal</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow container mx-auto px-4 py-8 flex items-center justify-center">
+        
+        <div class="w-full max-w-2xl fade-in">
+            <div class="bg-white rounded-xl shadow-xl overflow-hidden border border-gray-100">
+                <div class="bg-green-600 p-6 text-white shadow-inner">
+                    <h2 class="text-2xl font-bold flex items-center gap-2"><i class="fa-solid fa-pen-to-square"></i> Submit Ticket</h2>
+                    <p class="text-green-100 text-sm mt-1 opacity-90">Please fill out the details below.</p>
+                </div>
+                
+                <div class="p-8 space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">Full Name</label>
+                            <div class="relative">
+                                <i class="fa-solid fa-user absolute left-3 top-3.5 text-gray-400"></i>
+                                <input type="text" id="empName" class="w-full border border-gray-300 rounded-lg pl-10 p-2.5 focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition" placeholder="Juan Dela Cruz">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">Department / Station</label>
+                            <div class="relative">
+                                <i class="fa-solid fa-building absolute left-3 top-3.5 text-gray-400"></i>
+                                <input type="text" id="empDept" class="w-full border border-gray-300 rounded-lg pl-10 p-2.5 focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition" placeholder="ICU / Station 1">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Issue Category</label>
+                        <div class="grid grid-cols-2 gap-4">
+                            <button type="button" onclick="selectCategory(this, 'Hardware')" class="cat-btn border-2 border-gray-200 p-4 rounded-xl text-center hover:bg-gray-50 hover:border-gray-300 transition duration-200 group">
+                                <i class="fa-solid fa-computer text-2xl mb-2 text-gray-400 group-hover:text-gray-600"></i>
+                                <div class="font-bold text-gray-600 group-hover:text-gray-800">Hardware</div>
+                            </button>
+                            <button type="button" onclick="selectCategory(this, 'Software')" class="cat-btn border-2 border-gray-200 p-4 rounded-xl text-center hover:bg-gray-50 hover:border-gray-300 transition duration-200 group">
+                                <i class="fa-brands fa-windows text-2xl mb-2 text-gray-400 group-hover:text-gray-600"></i>
+                                <div class="font-bold text-gray-600 group-hover:text-gray-800">Software</div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="dynamic-section" class="hidden bg-gray-50 p-4 rounded-lg border border-gray-200 fade-in">
+                        
+                        <div id="software-options" class="hidden">
+                            <label class="block text-sm font-bold text-gray-700 mb-2">Select Software / System</label>
+                            <select id="software-select" class="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-green-500 outline-none bg-white">
+                                <option value="" disabled selected>-- Choose System --</option>
+                                <option value="HIS (Hospital Information System)">HIS (Hospital Information System)</option>
+                                <option value="HRIS (Human Resource Information System)">HRIS (Human Resource Information System)</option>
+                                <option value="FMS (Financial Management System)">FMS (Financial Management System)</option>
+                                <option value="LIS (Laboratory Information System)">LIS (Laboratory Information System)</option>
+                                <option value="MMS (Materials Management System)">MMS (Materials Management System)</option>
+                                <option value="PIS (PhilHealth Information System)">PIS (PhilHealth Information System)</option>
+                                <option value="Internet / Network">Internet / Network</option>
+                                <option value="Others">Others</option>
+                            </select>
+                        </div>
+
+                        <div id="hardware-options" class="hidden space-y-4">
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-2">Machine / Hardware Name</label>
+                                <input type="text" id="hardware-name" class="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-green-500 outline-none" placeholder="e.g., Epson Printer, Monitor, UPS, Keyboard, etc.">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-2">Serial Number (If available)</label>
+                                <input type="text" id="hardware-serial" class="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-green-500 outline-none font-mono" placeholder="SN: 123-ABC-456">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Problem Description</label>
+                        <textarea id="empDesc" rows="4" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-green-500 outline-none resize-none" placeholder="Please describe what happened..."></textarea>
+                    </div>
+
+                    <button onclick="submitTicket()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-lg transition shadow-lg transform active:scale-95 flex justify-center items-center gap-2">
+                        <span>Submit Report</span> <i class="fa-solid fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="toast" class="hidden fixed bottom-5 right-5 bg-green-600 text-white px-6 py-4 rounded-lg shadow-xl flex items-center gap-3 z-50 fade-in">
+        <i class="fa-solid fa-circle-check text-2xl"></i>
+        <div>
+            <h4 class="font-bold">Success</h4>
+            <p class="text-sm text-green-100">Ticket submitted successfully.</p>
+        </div>
+    </div>
+
+    <script type="module" src="script.js"></script>
+</body>
+</html>

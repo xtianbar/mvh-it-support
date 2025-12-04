@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hospital IT - Admin Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+    <style>
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .modal-pop { animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans text-gray-800 min-h-screen flex flex-col">
+
+    <header class="bg-slate-800 text-white shadow-lg sticky top-0 z-20">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <i class="fa-solid fa-user-shield text-green-400 text-2xl"></i>
+                <div>
+                    <h1 class="text-xl font-bold tracking-wide">IT<span class="text-green-400">Admin</span></h1>
+                    <p class="text-xs text-gray-400 uppercase tracking-widest">Management Console</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-4">
+                <button onclick="logout()" class="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2 px-4 rounded transition">
+                    <i class="fa-solid fa-power-off"></i> Logout
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow container mx-auto px-4 py-8 relative">
+        
+        <div class="flex flex-col md:flex-row justify-between items-end mb-6 gap-4">
+            <div>
+                <h2 class="text-3xl font-bold text-slate-800">Ticket Dashboard</h2>
+                <p class="text-gray-500">Real-time support requests</p>
+            </div>
+            <div class="flex gap-2">
+                <span class="bg-white px-4 py-2 rounded shadow text-sm font-bold border-l-4 border-red-500">Open: <span id="count-open">0</span></span>
+                <span class="bg-white px-4 py-2 rounded shadow text-sm font-bold border-l-4 border-yellow-500">Pending: <span id="count-pending">0</span></span>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow overflow-hidden border border-gray-200 uppercase">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-slate-100 text-slate-600 text-xs uppercase">
+                        <tr>
+                            <th class="p-4 border-b">ID</th>
+                            <th class="p-4 border-b">Date</th>
+                            <th class="p-4 border-b">Requester</th>
+                            <th class="p-4 border-b">Category</th>
+                            <th class="p-4 border-b">Reported Issue</th>
+                            <th class="p-4 border-b">Status</th>
+                            <th class="p-4 border-b text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="admin-ticket-list" class="text-sm"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="resolved-section" class="hidden mt-12 fade-in uppercase">
+            <h3 class="text-xl font-bold text-gray-500 mb-4 border-b pb-2">
+                <i class="fa-solid fa-check-double mr-2"></i>Resolved History
+            </h3>
+            <div class="bg-gray-50 rounded-lg shadow overflow-hidden border border-gray-200">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-gray-200 text-gray-600 text-xs uppercase">
+                            <tr>
+                                <th class="p-4 border-b">ID</th>
+                                <th class="p-4 border-b">Date</th>
+                                <th class="p-4 border-b">Requester</th>
+                                <th class="p-4 border-b">Category</th>
+                                <th class="p-4 border-b">Reported Issue</th>
+                                <th class="p-4 border-b">Status</th>
+                                <th class="p-4 border-b text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resolved-ticket-list" class="text-sm text-gray-500"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="login-modal" class="fixed inset-0 bg-slate-900 bg-opacity-90 flex items-center justify-center z-50 backdrop-blur-sm">
+        <div class="bg-white p-8 rounded-xl shadow-2xl w-96 modal-pop">
+            <div class="text-center mb-6">
+                <i class="fa-solid fa-lock text-4xl text-slate-700"></i>
+                <h3 class="text-xl font-bold mt-2">Admin Access</h3>
+            </div>
+            <input type="password" id="adminPassword" placeholder="Enter Password" class="w-full border p-3 rounded mb-4 outline-none focus:border-slate-800">
+            <button onclick="checkLogin()" class="w-full py-2 bg-slate-800 text-white rounded hover:bg-slate-900 font-bold">Login</button>
+            <p id="login-error" class="text-red-500 text-xs text-center mt-3 hidden">Incorrect Password</p>
+        </div>
+    </div>
+
+    <div id="view-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-40 backdrop-blur-sm">
+        <div class="bg-white w-full max-w-lg rounded-xl shadow-2xl overflow-hidden modal-pop m-4">
+            
+            <div class="bg-slate-800 p-4 flex justify-between items-center text-white">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-ticket"></i>
+                    <h3 class="font-bold text-lg" id="modal-title">IT-XXXX Details</h3>
+                </div>
+                <button onclick="closeViewModal()" class="text-slate-400 hover:text-white transition"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+
+            <div class="p-6 space-y-4">
+                
+                <div id="modal-status-banner" class="p-2 rounded text-center font-bold text-sm uppercase mb-4">
+                    STATUS
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <span class="block text-gray-500 text-xs font-bold uppercase">Date & Time</span>
+                        <span id="modal-date" class="font-semibold text-gray-800"></span>
+                    </div>
+                    <div>
+                        <span class="block text-gray-500 text-xs font-bold uppercase">Requester</span>
+                        <span id="modal-requester" class="font-semibold text-gray-800"></span>
+                    </div>
+                    <div>
+                        <span class="block text-gray-500 text-xs font-bold uppercase">Category</span>
+                        <span id="modal-category" class="font-semibold text-gray-800"></span>
+                    </div>
+                    <div>
+                        <span class="block text-gray-500 text-xs font-bold uppercase">Department</span>
+                        <span id="modal-dept" class="font-semibold text-gray-800"></span>
+                    </div>
+                </div>
+
+                <hr class="border-gray-200">
+
+                <div class="bg-gray-50 p-3 rounded border border-gray-200">
+                    <div class="mb-2">
+                        <span class="text-gray-500 text-xs font-bold uppercase block">Specific Item / System</span>
+                        <span id="modal-specific" class="font-bold text-blue-700 text-lg"></span>
+                    </div>
+                    <div id="modal-serial-container" class="hidden">
+                        <span class="text-gray-500 text-xs font-bold uppercase block">Serial Number</span>
+                        <span id="modal-serial" class="font-mono text-gray-700"></span>
+                    </div>
+                </div>
+
+                <div>
+                    <span class="block text-gray-500 text-xs font-bold uppercase mb-1">Issue Description</span>
+                    <div id="modal-desc" class="w-full bg-white border p-3 rounded text-gray-700 text-sm h-24 overflow-y-auto"></div>
+                </div>
+
+            </div>
+
+            <div class="bg-gray-100 p-4 flex justify-end gap-2">
+                <button onclick="closeViewModal()" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 font-bold text-sm">Close</button>
+                <button id="modal-print-btn" onclick="" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-bold text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-print"></i> Print Ticket
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="admin-toast" class="hidden fixed bottom-5 right-5 bg-blue-600 text-white px-6 py-4 rounded-lg shadow-xl flex items-center gap-3 z-50 transition-all duration-300 transform translate-y-0">
+        <i class="fa-solid fa-bell text-2xl animate-pulse"></i>
+        <div>
+            <h4 class="font-bold text-lg">Update</h4>
+            <p class="text-sm text-blue-100">Dashboard updated.</p>
+        </div>
+    </div>
+
+    <script type="module" src="script.js"></script>
+</body>
+</html>
