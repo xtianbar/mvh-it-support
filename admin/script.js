@@ -1,7 +1,6 @@
 // --- FIREBASE IMPORTS ---
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getFirestore, collection, onSnapshot, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
 // --- CONFIGURATION ---
 const firebaseConfig = {
@@ -15,121 +14,27 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase Services
-let app, db, auth, provider;
-try {
-    app = initializeApp(firebaseConfig);
-    db = getFirestore(app);
-    auth = getAuth(app);
-    provider = new GoogleAuthProvider();
-    console.log("Firebase initialized successfully");
-} catch (e) {
-    console.error("CRITICAL FIREBASE INIT ERROR: ", e);
-}
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
 const notificationSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 let globalTickets = []; 
-let unsubscribeListener = null; 
 
-// --- 1. AUTH STATE OBSERVER (Runs automatically) ---
-onAuthStateChanged(auth, (user) => {
-    console.log("Auth State Changed:", user ? "User Signed In" : "User Signed Out");
-    if (user) {
-        document.getElementById('login-modal').classList.add('hidden');
-        
-        const logoutBtn = document.getElementById('logoutBtn');
-        if(logoutBtn) logoutBtn.classList.remove('hidden');
-        
-        const userInfo = document.getElementById('user-info');
-        if(userInfo) userInfo.innerText = `Hello, ${user.displayName}`;
-        
-        startRealTimeListener(); 
-    } else {
-        document.getElementById('login-modal').classList.remove('hidden');
-        
-        const logoutBtn = document.getElementById('logoutBtn');
-        if(logoutBtn) logoutBtn.classList.add('hidden');
-        
-        const userInfo = document.getElementById('user-info');
-        if(userInfo) userInfo.innerText = '';
-        
-        if(unsubscribeListener) unsubscribeListener();
-        renderAdminTable([]); 
-    }
-});
-
-// --- 2. GLOBAL CLICK LISTENER (Fixes "Button Not Clickable" issues) ---
-document.addEventListener('click', (e) => {
-    // Check if clicked element is the login button or inside it
-    const loginBtn = e.target.closest('#googleLoginBtn');
-    
-    if (loginBtn) {
-        console.log("Login Button Click Detected via Delegation");
-        handleGoogleLogin(loginBtn);
-    }
-});
-
-function handleGoogleLogin(btnElement) {
-    const originalContent = btnElement.innerHTML;
-    btnElement.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i><span> Connecting...</span>`;
-    btnElement.disabled = true;
-
-    // Clear previous errors
-    const errDisplay = document.getElementById('login-error-msg');
-    if(errDisplay) errDisplay.classList.add('hidden');
-
-    signInWithPopup(auth, provider)
-        .then((result) => {
-            console.log("Login Success:", result.user.email);
-            // onAuthStateChanged handles the UI
-        })
-        .catch((error) => {
-            console.error("Login Error:", error);
-            
-            // Reset Button
-            btnElement.innerHTML = originalContent;
-            btnElement.disabled = false;
-
-            // DETAILED ERROR HANDLING FOR VERCEL
-            let msg = error.message;
-            if (error.code === 'auth/unauthorized-domain') {
-                msg = `Domain Error: Add ${window.location.hostname} to Authorized Domains in Firebase Console.`;
-            } else if (error.code === 'auth/popup-closed-by-user') {
-                msg = "Login Cancelled by user.";
-            } else if (error.code === 'auth/popup-blocked') {
-                msg = "Popup Blocked. Please allow popups for this site.";
-            }
-            
-            // Show error in the UI element instead of alert
-            if(errDisplay) {
-                errDisplay.innerText = msg;
-                errDisplay.classList.remove('hidden');
-            } else {
-                console.warn("Error displaying message:", msg);
-            }
-        });
-}
-
-
-// --- 3. LOGOUT LOGIC ---
-window.logout = function() {
-    if(!confirm("Are you sure you want to logout?")) return;
-    
-    signOut(auth).then(() => {
-        console.log("Sign out successful");
-    }).catch((error) => {
-        console.error("Sign out error", error);
-    });
-};
+// --- STARTUP ---
+// Automatically start listening when page loads
+console.log("Admin Dashboard Loaded - Starting Real-time Sync");
+startRealTimeListener();
 
 
 // --- 4. REAL-TIME DB LISTENER ---
 function startRealTimeListener() {
-    unsubscribeListener = onSnapshot(collection(db, "tickets"), (snapshot) => {
+    onSnapshot(collection(db, "tickets"), (snapshot) => {
         let tickets = [];
         snapshot.forEach((doc) => {
             tickets.push({ firebaseId: doc.id, ...doc.data() });
         });
         
+        // Notification Logic
         if (globalTickets.length > 0 && tickets.length > globalTickets.length) {
             playNotification();
         }
@@ -139,7 +44,7 @@ function startRealTimeListener() {
     }, (error) => {
         console.error("Database Error:", error);
         if(error.code === 'permission-denied') {
-            console.error("Permission Denied: Check Firestore rules.");
+            alert("Database Permission Denied.\n\nSince login is removed, you MUST enable public access in Firebase Console:\nBuild -> Firestore -> Rules -> allow read, write: if true;");
         }
     });
 }
@@ -244,9 +149,9 @@ function createTicketRow(t, today, isResolved) {
                 <button onclick="window.updateStatus('${docId}', 'Pending')" class="text-yellow-500 hover:text-yellow-700 mx-1 bg-white p-2 rounded shadow-sm border" title="Mark Pending"><i class="fa-solid fa-clock"></i></button>
                 <button onclick="window.updateStatus('${docId}', 'Resolved')" class="text-green-500 hover:text-green-700 mx-1 bg-white p-2 rounded shadow-sm border" title="Mark Done"><i class="fa-solid fa-check"></i></button>
             ` : `
-                <button onclick="window.updateStatus('${docId}', 'Open')" class="text-gray-400 hover:text-blue-600 mx-1 text-xs" title="Re-Open"><i class="fa-solid fa-arrow-rotate-left"></i></button>
+                <button onclick="window.updateStatus('${docId}', 'Open')" class="text-black hover:text-gray-800 mx-1 text-xs" title="Re-Open">Re-open Ticket</button>
             `}
-             <button onclick="window.deleteTicket('${docId}')" class="text-gray-300 hover:text-red-500 mx-1" title="Delete"><i class="fa-solid fa-trash"></i></button>
+             <button onclick="window.deleteTicket('${docId}')" class="text-red-400 hover:text-red-500 mx-1" title="Delete"><i class="fa-solid fa-trash"></i></button>
         </td>
     `;
     return tr;
@@ -290,7 +195,7 @@ window.updateStatus = async function(docId, newStatus) {
         await updateDoc(ticketRef, { status: newStatus });
     } catch (e) {
         console.error("Error updating status: ", e);
-        // Error display logic could be added here if needed
+        alert("Failed to update status.");
     }
 }
 
@@ -300,12 +205,13 @@ window.deleteTicket = async function(docId) {
         await deleteDoc(doc(db, "tickets", docId));
     } catch (e) {
         console.error("Error deleting ticket: ", e);
+        alert("Failed to delete ticket.");
     }
 }
 
 window.printTicket = function(docId) {
     const t = globalTickets.find(ticket => ticket.firebaseId === docId);
-    if (!t) { console.warn('Ticket not found'); return; }
+    if (!t) { alert('Ticket not found'); return; }
 
     let dateOnly = 'N/A';
     if(t.displayTime) {
@@ -321,9 +227,9 @@ window.printTicket = function(docId) {
 
     const printWindow = window.open('', '', 'height=800,width=1000');
     printWindow.document.write(`
-        <html><head><title>${t.id}</title>
+        <html class="uppercase"><head><title>${t.id}</title>
         <style>
-            body { font-family: Arial, sans-serif; margin: 0; padding: 20px; display: flex; justify-content: center; }
+            body { text-transform: uppercase; font-family: Arial, sans-serif; margin: 0; padding: 20px; display: flex; justify-content: center; }
             .ticket-card { width: 8.5in; border: 2px solid #333; padding: 20px; box-sizing: border-box; }
             .header { text-align: center; border-bottom: 2px solid #333; margin-bottom: 20px; }
             .header h1 { margin: 0; font-size: 18px; text-transform: uppercase; letter-spacing: 1px; }
