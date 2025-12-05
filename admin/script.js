@@ -3,11 +3,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getFirestore, collection, onSnapshot, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-// --- DIAGNOSTIC START ---
-console.log("Script initializing...");
-// Remove this alert after it works, but for now it confirms the code is live on Vercel
-// alert("DEBUG: Script Loaded. Current Domain: " + window.location.hostname); 
-
 // --- CONFIGURATION ---
 const firebaseConfig = {
   apiKey: "AIzaSyC_L2va6-rxNLjg4ag9WHSSPMVFroRitrA",
@@ -28,7 +23,7 @@ try {
     provider = new GoogleAuthProvider();
     console.log("Firebase initialized successfully");
 } catch (e) {
-    alert("CRITICAL FIREBASE INIT ERROR: " + e.message);
+    console.error("CRITICAL FIREBASE INIT ERROR: ", e);
 }
 
 const notificationSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
@@ -78,6 +73,10 @@ function handleGoogleLogin(btnElement) {
     btnElement.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i><span> Connecting...</span>`;
     btnElement.disabled = true;
 
+    // Clear previous errors
+    const errDisplay = document.getElementById('login-error-msg');
+    if(errDisplay) errDisplay.classList.add('hidden');
+
     signInWithPopup(auth, provider)
         .then((result) => {
             console.log("Login Success:", result.user.email);
@@ -93,20 +92,20 @@ function handleGoogleLogin(btnElement) {
             // DETAILED ERROR HANDLING FOR VERCEL
             let msg = error.message;
             if (error.code === 'auth/unauthorized-domain') {
-                msg = `DOMAIN ERROR!\n\nFirebase does not trust this website.\n\n1. Go to Firebase Console -> Authentication -> Settings -> Authorized Domains.\n2. Add this EXACT domain:\n\n${window.location.hostname}`;
-                // Also show on screen if alert is blocked
-                const errDisplay = document.getElementById('login-error-msg');
-                if(errDisplay) {
-                    errDisplay.innerText = "Domain Unauthorized. Add: " + window.location.hostname;
-                    errDisplay.classList.remove('hidden');
-                }
+                msg = `Domain Error: Add ${window.location.hostname} to Authorized Domains in Firebase Console.`;
             } else if (error.code === 'auth/popup-closed-by-user') {
                 msg = "Login Cancelled by user.";
             } else if (error.code === 'auth/popup-blocked') {
                 msg = "Popup Blocked. Please allow popups for this site.";
             }
             
-            alert(msg);
+            // Show error in the UI element instead of alert
+            if(errDisplay) {
+                errDisplay.innerText = msg;
+                errDisplay.classList.remove('hidden');
+            } else {
+                console.warn("Error displaying message:", msg);
+            }
         });
 }
 
@@ -119,7 +118,6 @@ window.logout = function() {
         console.log("Sign out successful");
     }).catch((error) => {
         console.error("Sign out error", error);
-        alert("Error signing out: " + error.message);
     });
 };
 
@@ -141,7 +139,7 @@ function startRealTimeListener() {
     }, (error) => {
         console.error("Database Error:", error);
         if(error.code === 'permission-denied') {
-            alert("Database Permission Denied.\n\nGo to Firebase Console -> Firestore Database -> Rules.\nChange 'allow read, write: if false;' to 'allow read, write: if true;'");
+            console.error("Permission Denied: Check Firestore rules.");
         }
     });
 }
@@ -292,7 +290,7 @@ window.updateStatus = async function(docId, newStatus) {
         await updateDoc(ticketRef, { status: newStatus });
     } catch (e) {
         console.error("Error updating status: ", e);
-        alert("Failed to update status.");
+        // Error display logic could be added here if needed
     }
 }
 
@@ -302,13 +300,12 @@ window.deleteTicket = async function(docId) {
         await deleteDoc(doc(db, "tickets", docId));
     } catch (e) {
         console.error("Error deleting ticket: ", e);
-        alert("Failed to delete ticket.");
     }
 }
 
 window.printTicket = function(docId) {
     const t = globalTickets.find(ticket => ticket.firebaseId === docId);
-    if (!t) { alert('Ticket not found'); return; }
+    if (!t) { console.warn('Ticket not found'); return; }
 
     let dateOnly = 'N/A';
     if(t.displayTime) {
