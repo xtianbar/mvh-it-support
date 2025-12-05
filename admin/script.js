@@ -297,3 +297,6 @@ window.printTicket = function(docId) {
     printWindow.focus();
     setTimeout(() => { printWindow.print(); printWindow.close(); }, 500);
 }
+
+
+// --- TICKET SUBMISSION LOGIC ---
