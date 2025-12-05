@@ -2,6 +2,24 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getFirestore, collection, onSnapshot, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
+// --- VISUAL DEBUGGER ---
+function logToScreen(msg) {
+    console.log(msg);
+    let debugBox = document.getElementById('debug-console');
+    if (!debugBox) {
+        debugBox = document.createElement('div');
+        debugBox.id = 'debug-console';
+        debugBox.style.cssText = "position:fixed; bottom:0; left:0; width:100%; height:200px; background:rgba(0,0,0,0.9); color:#0f0; font-family:monospace; font-size:12px; overflow-y:scroll; z-index:9999; padding:10px; pointer-events:none; border-top: 2px solid #0f0;";
+        document.body.appendChild(debugBox);
+    }
+    const line = document.createElement('div');
+    line.innerHTML = `> ${msg}`;
+    debugBox.appendChild(line);
+    debugBox.scrollTop = debugBox.scrollHeight;
+}
+
+logToScreen("Initializing Script v2.0 (Public Mode)...");
+
 // --- CONFIGURATION ---
 const firebaseConfig = {
   apiKey: "AIzaSyC_L2va6-rxNLjg4ag9WHSSPMVFroRitrA",
@@ -14,39 +32,58 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase Services
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+let app, db;
+try {
+    app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    logToScreen("Firebase App Initialized. Project ID: mvh-ticket");
+} catch (e) {
+    logToScreen("<span style='color:red'>CRITICAL INIT ERROR: " + e.message + "</span>");
+}
 
 const notificationSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 let globalTickets = []; 
 
-// --- STARTUP ---
-// Automatically start listening when page loads
-console.log("Admin Dashboard Loaded - Starting Real-time Sync");
+// --- START LISTENER ---
+logToScreen("Attempting to connect to Firestore...");
 startRealTimeListener();
 
-
-// --- 4. REAL-TIME DB LISTENER ---
 function startRealTimeListener() {
-    onSnapshot(collection(db, "tickets"), (snapshot) => {
-        let tickets = [];
-        snapshot.forEach((doc) => {
-            tickets.push({ firebaseId: doc.id, ...doc.data() });
+    try {
+        const colRef = collection(db, "tickets");
+        logToScreen("Collection Reference created: 'tickets'");
+
+        onSnapshot(colRef, (snapshot) => {
+            logToScreen(`<strong>SNAPSHOT RECEIVED!</strong> Found ${snapshot.size} documents.`);
+            
+            if (snapshot.empty) {
+                logToScreen("<span style='color:yellow'>WARNING: Collection is empty. Check spelling of 'tickets' in Console.</span>");
+            }
+
+            let tickets = [];
+            snapshot.forEach((doc) => {
+                // Log first ticket ID to verify data
+                if (tickets.length === 0) logToScreen(`Sample Doc ID: ${doc.id}`);
+                tickets.push({ firebaseId: doc.id, ...doc.data() });
+            });
+            
+            if (globalTickets.length > 0 && tickets.length > globalTickets.length) {
+                playNotification();
+            }
+            
+            globalTickets = tickets; 
+            renderAdminTable(tickets);
+            logToScreen("Table Rendered.");
+
+        }, (error) => {
+            logToScreen(`<span style='color:red'>DB ERROR: ${error.code} - ${error.message}</span>`);
+            if(error.code === 'permission-denied') {
+                logToScreen("FIX: Go to Firebase Console -> Rules -> allow read, write: if true;");
+            }
         });
-        
-        // Notification Logic
-        if (globalTickets.length > 0 && tickets.length > globalTickets.length) {
-            playNotification();
-        }
-        
-        globalTickets = tickets; 
-        renderAdminTable(tickets);
-    }, (error) => {
-        console.error("Database Error:", error);
-        if(error.code === 'permission-denied') {
-            alert("Database Permission Denied.\n\nSince login is removed, you MUST enable public access in Firebase Console:\nBuild -> Firestore -> Rules -> allow read, write: if true;");
-        }
-    });
+    } catch (e) {
+        logToScreen("<span style='color:red'>LISTENER ERROR: " + e.message + "</span>");
+    }
 }
 
 function playNotification() {
@@ -149,9 +186,9 @@ function createTicketRow(t, today, isResolved) {
                 <button onclick="window.updateStatus('${docId}', 'Pending')" class="text-yellow-500 hover:text-yellow-700 mx-1 bg-white p-2 rounded shadow-sm border" title="Mark Pending"><i class="fa-solid fa-clock"></i></button>
                 <button onclick="window.updateStatus('${docId}', 'Resolved')" class="text-green-500 hover:text-green-700 mx-1 bg-white p-2 rounded shadow-sm border" title="Mark Done"><i class="fa-solid fa-check"></i></button>
             ` : `
-                <button onclick="window.updateStatus('${docId}', 'Open')" class="text-black hover:text-gray-800 mx-1 text-xs" title="Re-Open">Re-open Ticket</button>
+                <button onclick="window.updateStatus('${docId}', 'Open')" class="text-gray-400 hover:text-blue-600 mx-1 text-xs" title="Re-Open"><i class="fa-solid fa-arrow-rotate-left"></i></button>
             `}
-             <button onclick="window.deleteTicket('${docId}')" class="text-red-400 hover:text-red-500 mx-1" title="Delete"><i class="fa-solid fa-trash"></i></button>
+             <button onclick="window.deleteTicket('${docId}')" class="text-gray-300 hover:text-red-500 mx-1" title="Delete"><i class="fa-solid fa-trash"></i></button>
         </td>
     `;
     return tr;
@@ -194,8 +231,7 @@ window.updateStatus = async function(docId, newStatus) {
         const ticketRef = doc(db, "tickets", docId);
         await updateDoc(ticketRef, { status: newStatus });
     } catch (e) {
-        console.error("Error updating status: ", e);
-        alert("Failed to update status.");
+        logToScreen("Update Error: " + e.message);
     }
 }
 
@@ -204,8 +240,7 @@ window.deleteTicket = async function(docId) {
     try {
         await deleteDoc(doc(db, "tickets", docId));
     } catch (e) {
-        console.error("Error deleting ticket: ", e);
-        alert("Failed to delete ticket.");
+        logToScreen("Delete Error: " + e.message);
     }
 }
 
