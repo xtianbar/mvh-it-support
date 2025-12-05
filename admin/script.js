@@ -1,34 +1,4 @@
-// GLOBAL ACTIONS
-window.openViewModal = (id) => {
-    const t = globalTickets.find(x => x.firebaseId === id);
-    if(!t) return;
-    document.getElementById('modal-title').innerText = `Details: ${t.id}`;
-    document.getElementById('modal-date').innerText = t.displayTime;
-    document.getElementById('modal-requester').innerText = t.name;
-    document.getElementById('modal-dept').innerText = t.dept;
-    document.getElementById('modal-category').innerText = t.category;
-    document.getElementById('modal-desc').innerText = t.desc;
-    document.getElementById('modal-specific').innerText = t.specific_item || 'General';
-    
-    const serial = document.getElementById('modal-serial-container');
-    if(t.serial_no && t.serial_no !== 'N/A') {
-        document.getElementById('modal-serial').innerText = t.serial_no;
-        serial.classList.remove('hidden');
-    } else serial.classList.add('hidden');
-
-    const banner = document.getElementById('modal-status-banner');
-    banner.innerText = t.status;
-    banner.className = 'p-2 rounded text-center font-bold text-sm uppercase mb-4 text-white ' + (t.status === 'Open' ? 'bg-red-500' : (t.status === 'Pending' ? 'bg-yellow-500' : 'bg-green-500'));
-
-    document.getElementById('modal-print-btn').onclick = () => window.printTicket(id);
-    document.getElementById('view-modal').classList.remove('hidden');
-};
-
-window.closeViewModal = () => document.getElementById('view-modal').classList.add('hidden');
-window.updateStatus = (id, s) => updateDoc(doc(db, "tickets", id), { status: s });
-window.deleteTicket = (id) => { if(confirm('Delete?')) deleteDoc(doc(db, "tickets", id)); };
-
-window.printTicket = (id) => {
+    window.printTicket = (id) => {
     const t = globalTickets.find(x => x.firebaseId === id);
     if(!t) return;
     
