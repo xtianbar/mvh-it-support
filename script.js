@@ -1,23 +1,23 @@
+// 1. IMPORT FIREBASE
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        // ADDED: query, orderBy, limit, getDocs
-        import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // YOUR CONFIG
-        const firebaseConfig = {
-            apiKey: "AIzaSyC_L2va6-rxNLjg4ag9WHSSPMVFroRitrA",
-            authDomain: "mvh-ticket.firebaseapp.com",
-            projectId: "mvh-ticket",
-            storageBucket: "mvh-ticket.firebasestorage.app",
-            messagingSenderId: "263958385684",
-            appId: "1:263958385684:web:ebfe74b7cba703739c4301",
-            measurementId: "G-PB2QWXCKTE"
-        };
+// 2. PASTE YOUR NEW FIREBASE CONFIG HERE
+const firebaseConfig = {
+    apiKey: "AIzaSyDGpoIwJUjspNV9duYj2Xi7yAb8088sEOc",
+    authDomain: "mvh-ticketing.firebaseapp.com",
+    databaseURL: "https://mvh-ticketing-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "mvh-ticketing",
+    storageBucket: "mvh-ticketing.firebasestorage.app",
+    messagingSenderId: "422093058612",
+    appId: "1:422093058612:web:196557c452d9e7dce8d061"
+  };
 
-        // Initialize
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        
-        let selectedCategory = null;
+// 3. INITIALIZE
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+let selectedCategory = null;
 
         // GLOBAL FUNCTION: Select Category
         window.selectCategory = function(btn, cat) {
