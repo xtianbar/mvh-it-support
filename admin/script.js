@@ -1,4 +1,4 @@
-    window.printTicket = (id) => {
+window.printTicket = (id) => {
     const t = globalTickets.find(x => x.firebaseId === id);
     if(!t) return;
     
