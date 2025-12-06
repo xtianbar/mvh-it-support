@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Metro Vigan Hospital - Online Ticketing System</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css"/>
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="icon" href="assets/img/favicon.ico" type="image/x-icon">
 </head>
@@ -38,14 +38,14 @@
                             <label class="block text-sm font-bold text-gray-700 mb-2">Full Name</label>
                             <div class="relative">
                                 <i class="fa-solid fa-user absolute left-3 top-3.5 text-gray-400"></i>
-                                <input type="text" id="empName" class="w-full border border-gray-300 rounded-lg pl-10 p-2.5 focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition" placeholder="Juan Dela Cruz">
+                                <input required type="text" id="empName" class="w-full border border-gray-300 rounded-lg pl-10 p-2.5 focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition" placeholder="Juan Dela Cruz">
                             </div>
                         </div>
                         <div>
                             <label class="block text-sm font-bold text-gray-700 mb-2">Department / Station</label>
                             <div class="relative">
                                 <i class="fa-solid fa-building absolute left-3 top-3.5 text-gray-400"></i>
-                                <input type="text" id="empDept" class="w-full border border-gray-300 rounded-lg pl-10 p-2.5 focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition" placeholder="ICU / Station 1">
+                                <input type="text" required id="empDept" class="w-full border border-gray-300 rounded-lg pl-10 p-2.5 focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition" placeholder="ICU / Station 1">
                             </div>
                         </div>
                     </div>
@@ -58,7 +58,7 @@
                                 <div class="font-bold text-gray-600 group-hover:text-gray-800">Hardware</div>
                             </button>
                             <button type="button" onclick="selectCategory(this, 'Software')" class="cat-btn border-2 border-gray-200 p-4 rounded-xl text-center hover:bg-gray-50 hover:border-gray-300 transition duration-200 group">
-                                <i class="fa-brands fa-windows text-2xl mb-2 text-gray-400 group-hover:text-gray-600"></i>
+                                <i class="fa-brands fa-microsoft text-2xl mb-2 text-gray-400 group-hover:text-gray-600"></i>
                                 <div class="font-bold text-gray-600 group-hover:text-gray-800">Software</div>
                             </button>
                         </div>
@@ -95,7 +95,7 @@
 
                     <div>
                         <label class="block text-sm font-bold text-gray-700 mb-2">Problem Description</label>
-                        <textarea id="empDesc" rows="4" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-green-500 outline-none resize-none" placeholder="Please describe what happened..."></textarea>
+                        <textarea id="empDesc" required rows="4" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-green-500 outline-none resize-none" placeholder="Please describe what happened..."></textarea>
                     </div>
 
                     <button onclick="submitTicket()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-lg transition shadow-lg transform active:scale-95 flex justify-center items-center gap-2">
@@ -115,7 +115,7 @@
         </div>
     </div>
 
-    <!-- FOOTER -->
+<!-- FOOTER -->
   <footer class="bg-gray-50 text-gray-800">
     <div class="border-t border-gray-200">
       <div class="max-w-7xl mx-auto px-6 md:px-12 py-4 flex flex-col md:flex-row justify-between items-center text-sm text-gray-500">

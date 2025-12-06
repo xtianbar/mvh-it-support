@@ -79,7 +79,7 @@ let selectedCategory = null;
             const originalText = btn ? btn.innerHTML : "Submit";
             if(btn) {
                 btn.disabled = true;
-                btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Generating ID...`;
+                btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Submitting Ticket...`;
             }
 
             try {
