@@ -19,3 +19,39 @@ body {
     animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
 }
     @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    
+/* --- TOOLTIP CSS --- */
+.btn-tooltip { position: relative; }
+.btn-tooltip:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 125%; /* Positions it above the button */
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #1e293b; /* Slate-800 */
+    color: #fff;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: bold;
+    white-space: nowrap;
+    opacity: 0;
+    animation: tooltipFade 0.2s forwards;
+    pointer-events: none; /* Prevents cursor flickering */
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    z-index: 50;
+}
+/* Little triangle arrow at bottom of tooltip */
+.btn-tooltip:hover::before {
+    content: '';
+    position: absolute;
+    bottom: 115%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 5px;
+    border-style: solid;
+    border-color: #1e293b transparent transparent transparent;
+    opacity: 0;
+    animation: tooltipFade 0.2s forwards;
+}
+@keyframes tooltipFade { to { opacity: 1; } }
